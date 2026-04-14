@@ -85,7 +85,7 @@ export default function TrackerApp({ initialState, username }: Props) {
     }
   };
 
-  const callAction = async (payload: Record<string, unknown>): Promise<boolean> => {
+  const callAction = async (payload: Record<string, unknown>): Promise<TrackerState | null> => {
     try {
       setError("");
       const nextState = await postAction(payload);
@@ -94,10 +94,10 @@ export default function TrackerApp({ initialState, username }: Props) {
       setNamesDraft(
         Array.from({ length: 3 }, (_, index) => nextState.settings.names[index] ?? defaultStudentName(index)),
       );
-      return true;
+      return nextState;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
-      return false;
+      return null;
     }
   };
 
@@ -141,14 +141,13 @@ export default function TrackerApp({ initialState, username }: Props) {
         </header>
 
         {showSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/60"
-              onClick={() => setShowSettings(false)}
-              aria-hidden="true"
-            />
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setShowSettings(false)}
+          >
             <section
               className="relative w-full max-w-2xl rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4"
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-sky-200">Settings</h2>
@@ -198,13 +197,13 @@ export default function TrackerApp({ initialState, username }: Props) {
                 type="button"
                 onClick={async () => {
                   setIsSettingsSaving(true);
-                  const saved = await callAction({
+                  const nextState = await callAction({
                     action: "saveSettings",
                     studentCount: studentCountDraft,
                     names: namesDraft,
                   });
                   setIsSettingsSaving(false);
-                  if (saved) {
+                  if (nextState) {
                     setShowSettings(false);
                   }
                 }}
