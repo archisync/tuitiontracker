@@ -37,7 +37,7 @@ export default function TrackerApp({ initialState, username }: Props) {
   const [showAddDay, setShowAddDay] = useState(false);
   const [newMonth, setNewMonth] = useState("");
   const [newDay, setNewDay] = useState("");
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [studentCountDraft, setStudentCountDraft] = useState(state.settings.studentCount);
   const [namesDraft, setNamesDraft] = useState<string[]>(
     Array.from({ length: 3 }, (_, index) => state.settings.names[index] ?? defaultStudentName(index)),
@@ -142,11 +142,10 @@ export default function TrackerApp({ initialState, username }: Props) {
 
         {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <button
-              type="button"
+            <div
               className="absolute inset-0 bg-black/60"
               onClick={() => setShowSettings(false)}
-              aria-label="Close settings modal"
+              aria-hidden="true"
             />
             <section
               className="relative w-full max-w-2xl rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4"
@@ -198,21 +197,21 @@ export default function TrackerApp({ initialState, username }: Props) {
               <button
                 type="button"
                 onClick={async () => {
-                  setIsSavingSettings(true);
+                  setIsSettingsSaving(true);
                   const saved = await callAction({
                     action: "saveSettings",
                     studentCount: studentCountDraft,
                     names: namesDraft,
                   });
-                  setIsSavingSettings(false);
+                  setIsSettingsSaving(false);
                   if (saved) {
                     setShowSettings(false);
                   }
                 }}
-                disabled={isSavingSettings}
+                disabled={isSettingsSaving}
                 className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-semibold text-slate-900 hover:bg-sky-400"
               >
-                {isSavingSettings ? "Saving..." : "Save"}
+                {isSettingsSaving ? "Saving..." : "Save"}
               </button>
               <button
                 type="button"
