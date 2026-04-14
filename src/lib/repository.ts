@@ -1,10 +1,17 @@
 import { ensureSchema, execute, triggerBackgroundSync } from "@/lib/db";
 import { getDhakaDayName, getDhakaMonthLabel, getDhakaNowParts } from "@/lib/time";
+import {
+  CYCLE_CLASS_COUNT,
+  MAX_NAME_LENGTH,
+  MAX_STUDENTS,
+  MAX_STUDENT_INDEX,
+  defaultStudentName,
+} from "@/lib/constants";
 import type { Cycle, TrackerState } from "@/lib/types";
 
 function sanitizeName(name: string, fallback: string) {
   const trimmed = name.trim();
-  return trimmed.length > 0 ? trimmed.slice(0, 60) : fallback;
+  return trimmed.length > 0 ? trimmed.slice(0, MAX_NAME_LENGTH) : fallback;
 }
 
 async function ensureCurrentMonthId() {
@@ -70,17 +77,17 @@ async function archiveIfNeeded(studentIndex: number) {
           FROM class_events
           WHERE student_index = ? AND archived_cycle_id IS NULL
           ORDER BY date_iso ASC, id ASC
-          LIMIT 12`,
-    args: [studentIndex],
+          LIMIT ?`,
+    args: [studentIndex, CYCLE_CLASS_COUNT],
   });
 
-  if (pendingRows.rows.length < 12) {
+  if (pendingRows.rows.length < CYCLE_CLASS_COUNT) {
     return;
   }
 
   const classes = pendingRows.rows;
   const first = classes[0];
-  const last = classes[11];
+  const last = classes[CYCLE_CLASS_COUNT - 1];
 
   const cycleInsert = await execute({
     sql: `INSERT INTO cycles (student_index, student_name, start_date, end_date, payment_given)
@@ -100,7 +107,13 @@ async function archiveIfNeeded(studentIndex: number) {
     });
   }
 
-  const ids = classes.map((row) => Number(row.id));
+  const ids = classes.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0);
+
+  if (ids.length !== CYCLE_CLASS_COUNT) {
+    return;
+  }
+
+  // Safe dynamic placeholders: ids are validated integers from DB rows above.
   const placeholders = ids.map(() => "?").join(",");
 
   await execute({
@@ -152,12 +165,19 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
     dayName: String(row.day_name),
   }));
 
-  const eventsResult = days.length
+  const validDayIds = days
+    .map((day) => day.id)
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  const eventsResult = validDayIds.length
     ? await execute({
+        // Safe dynamic placeholders: validDayIds are validated positive integers from DB rows.
         sql: `SELECT day_id, student_index
               FROM class_events
-              WHERE archived_cycle_id IS NULL AND day_id IN (${days.map(() => "?").join(",")})`,
-        args: days.map((day) => day.id),
+              WHERE archived_cycle_id IS NULL AND day_id IN (${validDayIds
+                .map(() => "?")
+                .join(",")})`,
+        args: validDayIds,
       })
     : { rows: [] as Array<{ day_id: number; student_index: number }> };
 
@@ -189,9 +209,9 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
 export async function saveSettings(studentCount: number, names: string[]) {
   await ensureSchema();
 
-  const safeCount = Math.max(1, Math.min(3, Math.trunc(studentCount)));
-  const safeNames = [0, 1, 2].map((index) =>
-    sanitizeName(names[index] ?? "", `Student ${index + 1}`),
+  const safeCount = Math.max(1, Math.min(MAX_STUDENTS, Math.trunc(studentCount)));
+  const safeNames = Array.from({ length: MAX_STUDENTS }, (_, index) => index).map((index) =>
+    sanitizeName(names[index] ?? "", defaultStudentName(index)),
   );
 
   await execute({
@@ -254,7 +274,7 @@ export async function addDay(monthId: number, dateIso: string) {
 export async function toggleClass(dayId: number, studentIndex: number) {
   await ensureSchema();
 
-  const safeStudentIndex = Math.max(0, Math.min(2, Math.trunc(studentIndex)));
+  const safeStudentIndex = Math.max(0, Math.min(MAX_STUDENT_INDEX, Math.trunc(studentIndex)));
 
   const existing = await execute({
     sql: `SELECT id

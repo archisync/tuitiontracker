@@ -29,35 +29,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => null);
+  let body: unknown;
 
   try {
-    switch (body?.action) {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+  }
+
+  const payload =
+    typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+
+  try {
+    switch (payload.action) {
       case "saveSettings": {
-        await saveSettings(Number(body.studentCount), Array.isArray(body.names) ? body.names : []);
+        if (!Array.isArray(payload.names)) {
+          return NextResponse.json({ error: "names must be an array" }, { status: 400 });
+        }
+        await saveSettings(Number(payload.studentCount), payload.names);
         break;
       }
       case "addMonth": {
-        await addMonth(typeof body.monthValue === "string" ? body.monthValue : undefined);
+        await addMonth(typeof payload.monthValue === "string" ? payload.monthValue : undefined);
         break;
       }
       case "addDay": {
-        await addDay(Number(body.monthId), String(body.dateIso ?? ""));
+        await addDay(Number(payload.monthId), String(payload.dateIso ?? ""));
         break;
       }
       case "toggleClass": {
-        await toggleClass(Number(body.dayId), Number(body.studentIndex));
+        await toggleClass(Number(payload.dayId), Number(payload.studentIndex));
         break;
       }
       case "togglePayment": {
-        await togglePayment(Number(body.cycleId), Boolean(body.paymentGiven));
+        await togglePayment(Number(payload.cycleId), Boolean(payload.paymentGiven));
         break;
       }
       default:
         return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
     }
 
-    const nextState = await getTrackerState(Number(body.monthId) || undefined);
+    const monthId = typeof payload.monthId === "number" ? payload.monthId : Number(payload.monthId);
+    const nextState = await getTrackerState(Number.isFinite(monthId) ? monthId : undefined);
     return NextResponse.json(nextState);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";

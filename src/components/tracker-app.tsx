@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { defaultStudentName } from "@/lib/constants";
 import type { TrackerState } from "@/lib/types";
 
 type Props = {
   initialState: TrackerState;
   username: string;
 };
+
 
 async function postAction(payload: Record<string, unknown>) {
   const response = await fetch("/api/tracker", {
@@ -37,12 +39,7 @@ export default function TrackerApp({ initialState, username }: Props) {
   const [expandedCycleId, setExpandedCycleId] = useState<number | null>(null);
   const [studentCountDraft, setStudentCountDraft] = useState(state.settings.studentCount);
   const [namesDraft, setNamesDraft] = useState<string[]>(
-    Array.from({ length: 3 }, (_, index) => state.settings.names[index] ?? `Student ${index + 1}`),
-  );
-
-  const students = useMemo(
-    () => namesDraft.slice(0, state.settings.studentCount).map((name, index) => name.trim() || `Student ${index + 1}`),
-    [namesDraft, state.settings.studentCount],
+    Array.from({ length: 3 }, (_, index) => state.settings.names[index] ?? defaultStudentName(index)),
   );
 
   const refresh = async (monthId?: number) => {
@@ -58,7 +55,7 @@ export default function TrackerApp({ initialState, username }: Props) {
     setNamesDraft(
       Array.from(
         { length: 3 },
-        (_, index) => (json as TrackerState).settings.names[index] ?? `Student ${index + 1}`,
+        (_, index) => (json as TrackerState).settings.names[index] ?? defaultStudentName(index),
       ),
     );
   };
@@ -79,7 +76,7 @@ export default function TrackerApp({ initialState, username }: Props) {
       setState(nextState);
       setStudentCountDraft(nextState.settings.studentCount);
       setNamesDraft(
-        Array.from({ length: 3 }, (_, index) => nextState.settings.names[index] ?? `Student ${index + 1}`),
+        Array.from({ length: 3 }, (_, index) => nextState.settings.names[index] ?? defaultStudentName(index)),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -331,7 +328,7 @@ export default function TrackerApp({ initialState, username }: Props) {
                       <tr key={day.id} className="border-t border-sky-400/10">
                         <td className="px-3 py-2">{day.dateIso}</td>
                         <td className="px-3 py-2">{day.dayName}</td>
-                        {students.map((name, studentIndex) => {
+                        {state.settings.names.map((name, studentIndex) => {
                           const checked = (state.checkedByDay[String(day.id)] ?? []).includes(studentIndex);
                           return (
                             <td key={`${name}-${day.id}`} className="px-3 py-2">

@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
 const SESSION_COOKIE = "tt_session";
-const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+const SESSION_MAX_AGE_DAYS = 30;
+const SESSION_MAX_AGE = SESSION_MAX_AGE_DAYS * 24 * 60 * 60;
 
 function requiredEnv(name: string) {
   const value = process.env[name];
