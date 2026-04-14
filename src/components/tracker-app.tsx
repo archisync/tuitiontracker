@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { defaultStudentName } from "@/lib/constants";
 import type { TrackerState } from "@/lib/types";
 
@@ -36,11 +37,26 @@ export default function TrackerApp({ initialState, username }: Props) {
   const [showAddDay, setShowAddDay] = useState(false);
   const [newMonth, setNewMonth] = useState("");
   const [newDay, setNewDay] = useState("");
-  const [expandedCycleId, setExpandedCycleId] = useState<number | null>(null);
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [studentCountDraft, setStudentCountDraft] = useState(state.settings.studentCount);
   const [namesDraft, setNamesDraft] = useState<string[]>(
     Array.from({ length: 3 }, (_, index) => state.settings.names[index] ?? defaultStudentName(index)),
   );
+
+  useEffect(() => {
+    if (!showSettings) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowSettings(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showSettings]);
 
   const refresh = async (monthId?: number) => {
     const response = await fetch(`/api/tracker${monthId ? `?monthId=${monthId}` : ""}`);
@@ -69,7 +85,7 @@ export default function TrackerApp({ initialState, username }: Props) {
     }
   };
 
-  const callAction = async (payload: Record<string, unknown>) => {
+  const callAction = async (payload: Record<string, unknown>): Promise<TrackerState | null> => {
     try {
       setError("");
       const nextState = await postAction(payload);
@@ -78,8 +94,10 @@ export default function TrackerApp({ initialState, username }: Props) {
       setNamesDraft(
         Array.from({ length: 3 }, (_, index) => nextState.settings.names[index] ?? defaultStudentName(index)),
       );
+      return nextState;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
+      return null;
     }
   };
 
@@ -105,6 +123,13 @@ export default function TrackerApp({ initialState, username }: Props) {
             >
               ⚙️
             </button>
+            <Link
+              href="/payments"
+              className="rounded-full border border-sky-300/40 bg-[#10244a] px-3 py-2 text-sm hover:bg-[#153160]"
+              aria-label="Open payments"
+            >
+              💰
+            </Link>
             <button
               type="button"
               onClick={logout}
@@ -116,111 +141,93 @@ export default function TrackerApp({ initialState, username }: Props) {
         </header>
 
         {showSettings && (
-          <section className="mb-4 rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4">
-            <h2 className="mb-3 text-lg font-semibold text-sky-200">Settings</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm">
-                Number of Students (max 3)
-                <select
-                  className="mt-1 w-full rounded-lg border border-sky-400/30 bg-[#091226] p-2"
-                  value={studentCountDraft}
-                  onChange={(event) => setStudentCountDraft(Number(event.target.value))}
-                >
-                  <option value={1}>1</option>
-                  <option value={2}>2</option>
-                  <option value={3}>3</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              {Array.from({ length: studentCountDraft }, (_, index) => (
-                <label key={index} className="text-sm">
-                  Name of Student {index + 1}
-                  <input
-                    className="mt-1 w-full rounded-lg border border-sky-400/30 bg-[#091226] p-2"
-                    value={namesDraft[index] ?? ""}
-                    onChange={(event) => {
-                      const next = [...namesDraft];
-                      next[index] = event.target.value;
-                      setNamesDraft(next);
-                    }}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                callAction({ action: "saveSettings", studentCount: studentCountDraft, names: namesDraft })
-              }
-              className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-semibold text-slate-900 hover:bg-sky-400"
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setShowSettings(false)}
+          >
+            <section
+              className="relative w-full max-w-2xl rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4"
+              onClick={(event) => event.stopPropagation()}
             >
-              Save
-            </button>
-          </section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-sky-200">Settings</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(false)}
+                  className="rounded-lg border border-sky-400/30 bg-[#091226] px-2 py-1 text-sm"
+                  aria-label="Close settings"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm">
+                  Number of Students (max 3)
+                  <select
+                    className="mt-1 w-full rounded-lg border border-sky-400/30 bg-[#091226] p-2"
+                    value={studentCountDraft}
+                    onChange={(event) => setStudentCountDraft(Number(event.target.value))}
+                  >
+                    <option value={1}>1</option>
+                    <option value={2}>2</option>
+                    <option value={3}>3</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {Array.from({ length: studentCountDraft }, (_, index) => (
+                  <label key={index} className="text-sm">
+                    Name of Student {index + 1}
+                    <input
+                      className="mt-1 w-full rounded-lg border border-sky-400/30 bg-[#091226] p-2"
+                      value={namesDraft[index] ?? ""}
+                      onChange={(event) => {
+                        const next = [...namesDraft];
+                        next[index] = event.target.value;
+                        setNamesDraft(next);
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsSettingsSaving(true);
+                  const nextState = await callAction({
+                    action: "saveSettings",
+                    studentCount: studentCountDraft,
+                    names: namesDraft,
+                  });
+                  setIsSettingsSaving(false);
+                  if (nextState) {
+                    setShowSettings(false);
+                  }
+                }}
+                disabled={isSettingsSaving}
+                className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-semibold text-slate-900 hover:bg-sky-400"
+              >
+                {isSettingsSaving ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="mt-2 rounded-xl border border-sky-400/30 px-4 py-2 font-semibold text-slate-200 hover:bg-[#091226]"
+              >
+                Cancel
+              </button>
+            </section>
+          </div>
         )}
 
         {error ? (
           <div className="mb-4 rounded-xl border border-rose-400/50 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>
         ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-          <aside className="rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4">
-            <h2 className="mb-3 text-lg font-semibold text-sky-200">Calculation / Payment</h2>
-            <div className="space-y-3">
-              {state.cycles.length === 0 ? (
-                <p className="text-sm text-slate-300">No completed 12-class cycles yet.</p>
-              ) : (
-                state.cycles.map((cycle) => (
-                  <div key={cycle.id} className="rounded-xl border border-sky-400/20 bg-[#091226] p-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedCycleId((current) => (current === cycle.id ? null : cycle.id))
-                      }
-                      className="flex w-full flex-col items-start gap-1 text-left"
-                    >
-                      <span className="font-semibold text-sky-200">{cycle.studentName}</span>
-                      <span className="text-xs text-slate-300">
-                        {cycle.startDate} → {cycle.endDate}
-                      </span>
-                      <span className="text-xs text-slate-300">Classes Taken: 12/12</span>
-                    </button>
-
-                    <label className="mt-2 flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={cycle.paymentGiven}
-                        onChange={(event) =>
-                          callAction({
-                            action: "togglePayment",
-                            cycleId: cycle.id,
-                            paymentGiven: event.target.checked,
-                            monthId: state.selectedMonthId,
-                          })
-                        }
-                      />
-                      Payment Given
-                    </label>
-
-                    {expandedCycleId === cycle.id && (
-                      <ul className="mt-3 space-y-1 text-xs text-slate-200">
-                        {cycle.classes.map((item) => (
-                          <li key={item.id} className="rounded bg-[#071023] p-2">
-                            #{item.classNumber} • {item.dateIso} • {item.dayName} • {item.studentName}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </aside>
-
-          <main className="rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4">
+        <main className="rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <select
                 className="rounded-lg border border-sky-400/30 bg-[#091226] p-2 text-sm"
@@ -358,8 +365,7 @@ export default function TrackerApp({ initialState, username }: Props) {
                 </tbody>
               </table>
             </div>
-          </main>
-        </div>
+        </main>
       </div>
     </div>
   );
