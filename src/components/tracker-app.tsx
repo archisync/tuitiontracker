@@ -337,6 +337,7 @@ export default function TrackerApp({ initialState, username }: Props) {
                         <td className="px-3 py-2">{day.dayName}</td>
                         {state.settings.names.map((name, studentIndex) => {
                           const checked = (state.checkedByDay[String(day.id)] ?? []).includes(studentIndex);
+                          const classNumber = state.classNumberByDayStudent[`${day.id}:${studentIndex}`];
                           return (
                             <td key={`${name}-${day.id}`} className="px-3 py-2">
                               <button
@@ -349,13 +350,23 @@ export default function TrackerApp({ initialState, username }: Props) {
                                     monthId: state.selectedMonthId,
                                   })
                                 }
-                                className={`h-7 w-7 rounded-full border-2 transition ${
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border-2 leading-none transition ${
                                   checked
                                     ? "border-emerald-300 bg-emerald-500"
                                     : "border-sky-300/60 bg-transparent hover:border-sky-200"
                                 }`}
-                                aria-label={`Toggle ${name} on ${day.dateIso}`}
-                              />
+                                aria-label={
+                                  checked && classNumber
+                                    ? `Toggle ${name} on ${day.dateIso}, class ${classNumber}`
+                                    : `Toggle ${name} on ${day.dateIso}`
+                                }
+                              >
+                                {checked ? (
+                                  <span className="text-[10px] font-semibold text-black sm:text-xs">
+                                    {classNumber ?? ""}
+                                  </span>
+                                ) : null}
+                              </button>
                             </td>
                           );
                         })}
