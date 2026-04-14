@@ -1,39 +1,31 @@
 import { createClient } from "@libsql/client";
 import type { InStatement, TransactionMode } from "@libsql/client";
-import { mkdirSync } from "node:fs";
 
-mkdirSync(".data", { recursive: true });
-
-const localUrl = "file:./.data/tuitiontracker.db";
 const syncUrl = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
 
-const localClient = createClient({ url: localUrl });
+// On Vercel, the file system is read-only except for /tmp.
+// However, an embedded replica in a serverless function is destroyed on every cold start.
+// It's much safer to just connect directly to the remote Turso database if it exists,
+// or use a temporary local file for development.
 
-const replicaSyncClient = (() => {
-  if (!syncUrl) {
-    return null;
-  }
-
-  try {
-    return createClient({
-      url: localUrl,
-      syncUrl,
-      authToken,
+const client = syncUrl && authToken
+  ? createClient({
+      url: syncUrl,
+      authToken: authToken,
+    })
+  : createClient({
+      url: "file:/tmp/tuitiontracker.db",
     });
-  } catch {
-    return null;
-  }
-})();
 
 let initialized = false;
 
 export async function execute(statement: InStatement) {
-  return localClient.execute(statement);
+  return client.execute(statement);
 }
 
 export async function batch(statements: InStatement[], mode: TransactionMode = "write") {
-  return localClient.batch(statements, mode);
+  return client.batch(statements, mode);
 }
 
 export async function ensureSchema() {
@@ -101,13 +93,7 @@ export async function ensureSchema() {
 }
 
 export function triggerBackgroundSync() {
-  if (!replicaSyncClient) {
-    return;
-  }
-
-  queueMicrotask(() => {
-    replicaSyncClient.sync().catch(() => {
-      // Best-effort background sync only.
-    });
-  });
+  // Remote DB doesn't need explicit sync calls in serverless mode.
+  // If we were using an embedded replica on a long-running server, we would sync here.
+  return;
 }
