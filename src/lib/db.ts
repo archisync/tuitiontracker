@@ -77,6 +77,13 @@ export async function ensureSchema() {
         archived_cycle_id INTEGER REFERENCES cycles(id),
         UNIQUE(day_id, student_index)
       );`,
+      `CREATE TABLE IF NOT EXISTS daily_topics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        day_id INTEGER NOT NULL REFERENCES days(id) ON DELETE CASCADE,
+        student_index INTEGER NOT NULL,
+        topic TEXT NOT NULL,
+        UNIQUE(day_id, student_index)
+      );`,
       `CREATE TABLE IF NOT EXISTS cycle_classes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         cycle_id INTEGER NOT NULL REFERENCES cycles(id) ON DELETE CASCADE,

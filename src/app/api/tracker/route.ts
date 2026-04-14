@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth";
 import {
   addDay,
   addMonth,
+  deleteDay,
+  editDay,
   getTrackerState,
   saveSettings,
   toggleClass,
@@ -63,6 +65,22 @@ export async function POST(request: Request) {
       }
       case "togglePayment": {
         await togglePayment(Number(payload.cycleId), Boolean(payload.paymentGiven));
+        break;
+      }
+      case "deleteDay": {
+        await deleteDay(Number(payload.dayId));
+        break;
+      }
+      case "editDay": {
+        if (!Array.isArray(payload.topics)) {
+          return NextResponse.json({ error: "topics must be an array" }, { status: 400 });
+        }
+        await editDay(
+          Number(payload.dayId),
+          String(payload.dateIso ?? ""),
+          String(payload.dayName ?? ""),
+          payload.topics.map((topic) => String(topic ?? "")),
+        );
         break;
       }
       default:

@@ -40,6 +40,7 @@ export type TrackerState = {
   selectedMonthId: number;
   days: DayRow[];
   checkedByDay: Record<string, number[]>;
+  dayTopicsByDayStudent: Record<string, string>;
   classNumberByDayStudent: Record<string, number>;
   cycles: Cycle[];
 };

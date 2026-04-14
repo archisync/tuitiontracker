@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import { defaultStudentName } from "@/lib/constants";
 import type { TrackerState } from "@/lib/types";
@@ -8,6 +8,21 @@ import type { TrackerState } from "@/lib/types";
 type Props = {
   initialState: TrackerState;
   username: string;
+};
+
+type DayActionMenuState = {
+  dayId: number;
+  dateIso: string;
+  dayName: string;
+  x: number;
+  y: number;
+};
+
+type EditDayDraft = {
+  dayId: number;
+  dateIso: string;
+  dayName: string;
+  topics: string[];
 };
 
 
@@ -42,21 +57,78 @@ export default function TrackerApp({ initialState, username }: Props) {
   const [namesDraft, setNamesDraft] = useState<string[]>(
     Array.from({ length: 3 }, (_, index) => state.settings.names[index] ?? defaultStudentName(index)),
   );
+  const [dayActionMenu, setDayActionMenu] = useState<DayActionMenuState | null>(null);
+  const [editDayDraft, setEditDayDraft] = useState<EditDayDraft | null>(null);
+  const [isEditDaySaving, setIsEditDaySaving] = useState(false);
+  const dayLongPressTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!showSettings) {
+    if (!showSettings && !dayActionMenu && !editDayDraft) {
       return;
     }
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setShowSettings(false);
+        setDayActionMenu(null);
+        setEditDayDraft(null);
       }
     };
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [showSettings]);
+  }, [dayActionMenu, editDayDraft, showSettings]);
+
+  const clearDayLongPressTimer = () => {
+    if (dayLongPressTimerRef.current !== null) {
+      window.clearTimeout(dayLongPressTimerRef.current);
+      dayLongPressTimerRef.current = null;
+    }
+  };
+
+  useEffect(
+    () => () => {
+      if (dayLongPressTimerRef.current !== null) {
+        window.clearTimeout(dayLongPressTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const openDayActionMenu = (dayId: number, dateIso: string, dayName: string, x: number, y: number) => {
+    const menuWidth = 170;
+    const menuHeight = 120;
+    const clampedX = Math.max(8, Math.min(x, window.innerWidth - menuWidth));
+    const clampedY = Math.max(8, Math.min(y, window.innerHeight - menuHeight));
+    setDayActionMenu({ dayId, dateIso, dayName, x: clampedX, y: clampedY });
+  };
+
+  const openEditDayModal = (dayId: number, dateIso: string, dayName: string) => {
+    const topics = state.settings.names.map(
+      (_, studentIndex) => state.dayTopicsByDayStudent[`${dayId}:${studentIndex}`] ?? "",
+    );
+    setEditDayDraft({
+      dayId,
+      dateIso,
+      dayName,
+      topics,
+    });
+  };
+
+  const handleDayPointerDown = (
+    event: PointerEvent<HTMLTableCellElement>,
+    dayId: number,
+    dateIso: string,
+    dayName: string,
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+    clearDayLongPressTimer();
+    dayLongPressTimerRef.current = window.setTimeout(() => {
+      openDayActionMenu(dayId, dateIso, dayName, event.clientX, event.clientY);
+    }, 500);
+  };
 
   const refresh = async (monthId?: number) => {
     const response = await fetch(`/api/tracker${monthId ? `?monthId=${monthId}` : ""}`);
@@ -223,6 +295,164 @@ export default function TrackerApp({ initialState, username }: Props) {
           </div>
         )}
 
+        {dayActionMenu && (
+          <div className="fixed inset-0 z-40" onClick={() => setDayActionMenu(null)}>
+            <div
+              className="absolute w-40 rounded-xl border border-sky-400/30 bg-[#0b1b38] p-2 shadow-2xl"
+              style={{ left: dayActionMenu.x, top: dayActionMenu.y }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  openEditDayModal(dayActionMenu.dayId, dayActionMenu.dateIso, dayActionMenu.dayName);
+                  setDayActionMenu(null);
+                }}
+                className="mb-2 w-full rounded-lg bg-sky-500 px-3 py-2 text-left text-sm font-semibold text-slate-900 hover:bg-sky-400"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await callAction({
+                    action: "deleteDay",
+                    dayId: dayActionMenu.dayId,
+                    monthId: state.selectedMonthId,
+                  });
+                  setDayActionMenu(null);
+                }}
+                className="w-full rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-left text-sm font-semibold text-rose-200 hover:bg-rose-500/20"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
+
+        {editDayDraft && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setEditDayDraft(null)}
+          >
+            <section
+              className="relative w-full max-w-2xl rounded-2xl border border-sky-400/30 bg-[#0b1b38] p-4"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-sky-200">Edit Day</h2>
+                <button
+                  type="button"
+                  onClick={() => setEditDayDraft(null)}
+                  className="rounded-lg border border-sky-400/30 bg-[#091226] px-2 py-1 text-sm"
+                  aria-label="Close edit day modal"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm">
+                  Date
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-lg border border-sky-400/30 bg-[#091226] p-2"
+                    value={editDayDraft.dateIso}
+                    onChange={(event) =>
+                      setEditDayDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              dateIso: event.target.value,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+                <label className="text-sm">
+                  Day
+                  <input
+                    type="text"
+                    className="mt-1 w-full rounded-lg border border-sky-400/30 bg-[#091226] p-2"
+                    value={editDayDraft.dayName}
+                    onChange={(event) =>
+                      setEditDayDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              dayName: event.target.value,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 grid gap-3">
+                {state.settings.names.map((name, studentIndex) => (
+                  <label key={`${editDayDraft.dayId}-${studentIndex}`} className="text-sm">
+                    Topic for {name}
+                    <input
+                      type="text"
+                      className="mt-1 w-full rounded-lg border border-sky-400/30 bg-[#091226] p-2"
+                      value={editDayDraft.topics[studentIndex] ?? ""}
+                      onChange={(event) =>
+                        setEditDayDraft((current) => {
+                          if (!current) {
+                            return current;
+                          }
+                          const nextTopics = [...current.topics];
+                          nextTopics[studentIndex] = event.target.value;
+                          return {
+                            ...current,
+                            topics: nextTopics,
+                          };
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                disabled={isEditDaySaving}
+                onClick={async () => {
+                  if (!editDayDraft) {
+                    return;
+                  }
+
+                  setIsEditDaySaving(true);
+                  const nextState = await callAction({
+                    action: "editDay",
+                    dayId: editDayDraft.dayId,
+                    dateIso: editDayDraft.dateIso,
+                    dayName: editDayDraft.dayName,
+                    topics: editDayDraft.topics,
+                    monthId: state.selectedMonthId,
+                  });
+                  setIsEditDaySaving(false);
+                  if (nextState) {
+                    setEditDayDraft(null);
+                  }
+                }}
+                className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-semibold text-slate-900 hover:bg-sky-400"
+              >
+                {isEditDaySaving ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditDayDraft(null)}
+                className="mt-2 rounded-xl border border-sky-400/30 px-4 py-2 font-semibold text-slate-200 hover:bg-[#091226]"
+              >
+                Cancel
+              </button>
+            </section>
+          </div>
+        )}
+
         {error ? (
           <div className="mb-4 rounded-xl border border-rose-400/50 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>
         ) : null}
@@ -333,8 +563,38 @@ export default function TrackerApp({ initialState, username }: Props) {
                   ) : (
                     state.days.map((day) => (
                       <tr key={day.id} className="border-t border-sky-400/10">
-                        <td className="px-3 py-2">{day.dateIso}</td>
-                        <td className="px-3 py-2">{day.dayName}</td>
+                        <td
+                          className="cursor-pointer px-3 py-2 select-none"
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            clearDayLongPressTimer();
+                            openDayActionMenu(day.id, day.dateIso, day.dayName, event.clientX, event.clientY);
+                          }}
+                          onPointerDown={(event) =>
+                            handleDayPointerDown(event, day.id, day.dateIso, day.dayName)
+                          }
+                          onPointerUp={clearDayLongPressTimer}
+                          onPointerLeave={clearDayLongPressTimer}
+                          onPointerCancel={clearDayLongPressTimer}
+                        >
+                          {day.dateIso}
+                        </td>
+                        <td
+                          className="cursor-pointer px-3 py-2 select-none"
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            clearDayLongPressTimer();
+                            openDayActionMenu(day.id, day.dateIso, day.dayName, event.clientX, event.clientY);
+                          }}
+                          onPointerDown={(event) =>
+                            handleDayPointerDown(event, day.id, day.dateIso, day.dayName)
+                          }
+                          onPointerUp={clearDayLongPressTimer}
+                          onPointerLeave={clearDayLongPressTimer}
+                          onPointerCancel={clearDayLongPressTimer}
+                        >
+                          {day.dayName}
+                        </td>
                         {state.settings.names.map((name, studentIndex) => {
                           const checked = (state.checkedByDay[String(day.id)] ?? []).includes(studentIndex);
                           const classNumber = state.classNumberByDayStudent[`${day.id}:${studentIndex}`];

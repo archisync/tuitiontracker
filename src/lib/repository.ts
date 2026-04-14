@@ -9,9 +9,15 @@ import {
 } from "@/lib/constants";
 import type { Cycle, TrackerState } from "@/lib/types";
 
+const MAX_TOPIC_LENGTH = 200;
+
 function sanitizeName(name: string, fallback: string) {
   const trimmed = name.trim();
   return trimmed.length > 0 ? trimmed.slice(0, MAX_NAME_LENGTH) : fallback;
+}
+
+function sanitizeTopic(topic: string) {
+  return topic.trim().slice(0, MAX_TOPIC_LENGTH);
 }
 
 async function ensureCurrentMonthId() {
@@ -181,6 +187,18 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
       })
     : { rows: [] as Array<{ day_id: number; student_index: number }> };
 
+  const dailyTopicsResult = validDayIds.length
+    ? await execute({
+        // Safe dynamic placeholders: validDayIds are validated positive integers from DB rows.
+        sql: `SELECT day_id, student_index, topic
+              FROM daily_topics
+              WHERE day_id IN (${validDayIds
+                .map(() => "?")
+                .join(",")})`,
+        args: validDayIds,
+      })
+    : { rows: [] as Array<{ day_id: number; student_index: number; topic: string }> };
+
   const checkedByDay: Record<string, number[]> = {};
 
   for (const row of eventsResult.rows) {
@@ -189,6 +207,11 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
       checkedByDay[dayId] = [];
     }
     checkedByDay[dayId].push(Number(row.student_index));
+  }
+
+  const dayTopicsByDayStudent: Record<string, string> = {};
+  for (const row of dailyTopicsResult.rows) {
+    dayTopicsByDayStudent[`${Number(row.day_id)}:${Number(row.student_index)}`] = String(row.topic);
   }
 
   const activeEventsResult = await execute({
@@ -220,6 +243,7 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
     selectedMonthId,
     days,
     checkedByDay,
+    dayTopicsByDayStudent,
     classNumberByDayStudent,
     cycles,
   };
@@ -356,6 +380,62 @@ export async function togglePayment(cycleId: number, paymentGiven: boolean) {
     sql: "UPDATE cycles SET payment_given = ? WHERE id = ?",
     args: [paymentGiven ? 1 : 0, cycleId],
   });
+
+  triggerBackgroundSync();
+}
+
+export async function deleteDay(dayId: number) {
+  await ensureSchema();
+
+  await execute({
+    sql: "DELETE FROM days WHERE id = ?",
+    args: [dayId],
+  });
+
+  triggerBackgroundSync();
+}
+
+export async function editDay(dayId: number, dateIso: string, dayName: string, topics: string[]) {
+  await ensureSchema();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+    throw new Error("Invalid date format.");
+  }
+
+  const normalizedDayName = dayName.trim() || getDhakaDayName(dateIso);
+
+  await execute({
+    sql: "UPDATE days SET date_iso = ?, day_name = ? WHERE id = ?",
+    args: [dateIso, normalizedDayName, dayId],
+  });
+
+  await execute({
+    sql: "UPDATE class_events SET date_iso = ?, day_name = ? WHERE day_id = ?",
+    args: [dateIso, normalizedDayName, dayId],
+  });
+
+  const settingsResult = await execute(
+    "SELECT student_count FROM settings WHERE id = 1",
+  );
+  const studentCount = Math.max(1, Math.min(MAX_STUDENTS, Math.trunc(Number(settingsResult.rows[0].student_count))));
+
+  for (let studentIndex = 0; studentIndex < studentCount; studentIndex += 1) {
+    const topic = sanitizeTopic(String(topics[studentIndex] ?? ""));
+    if (!topic) {
+      await execute({
+        sql: "DELETE FROM daily_topics WHERE day_id = ? AND student_index = ?",
+        args: [dayId, studentIndex],
+      });
+      continue;
+    }
+
+    await execute({
+      sql: `INSERT INTO daily_topics (day_id, student_index, topic)
+            VALUES (?, ?, ?)
+            ON CONFLICT(day_id, student_index) DO UPDATE SET topic = excluded.topic`,
+      args: [dayId, studentIndex, topic],
+    });
+  }
 
   triggerBackgroundSync();
 }
