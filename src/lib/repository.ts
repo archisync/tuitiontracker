@@ -417,7 +417,14 @@ export async function editDay(dayId: number, dateIso: string, dayName: string, t
   const settingsResult = await execute(
     "SELECT student_count FROM settings WHERE id = 1",
   );
-  const studentCount = Math.max(1, Math.min(MAX_STUDENTS, Math.trunc(Number(settingsResult.rows[0].student_count))));
+  const settingsRow = settingsResult.rows[0];
+  const studentCount = Math.max(
+    1,
+    Math.min(
+      MAX_STUDENTS,
+      Math.trunc(settingsRow ? Number(settingsRow.student_count) : 1),
+    ),
+  );
 
   for (let studentIndex = 0; studentIndex < studentCount; studentIndex += 1) {
     const topic = sanitizeTopic(String(topics[studentIndex] ?? ""));
