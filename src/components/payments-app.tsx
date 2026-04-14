@@ -32,7 +32,7 @@ export default function PaymentsApp({ initialState, username }: Props) {
   const [state, setState] = useState<TrackerState>(initialState);
   const [error, setError] = useState<string>("");
 
-  const togglePayment = async (cycleId: number, paymentGiven: boolean) => {
+  const setPaymentGiven = async (cycleId: number, paymentGiven: boolean) => {
     try {
       setError("");
       const nextState = await postAction({
@@ -67,7 +67,7 @@ export default function PaymentsApp({ initialState, username }: Props) {
           <div className="mb-4 rounded-xl border border-rose-400/50 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>
         ) : null}
 
-        <PaymentCyclesPanel cycles={state.cycles} onTogglePayment={togglePayment} />
+        <PaymentCyclesPanel cycles={state.cycles} onTogglePayment={setPaymentGiven} />
       </div>
     </div>
   );

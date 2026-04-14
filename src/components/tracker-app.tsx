@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { defaultStudentName } from "@/lib/constants";
 import type { TrackerState } from "@/lib/types";
@@ -42,6 +42,21 @@ export default function TrackerApp({ initialState, username }: Props) {
     Array.from({ length: 3 }, (_, index) => state.settings.names[index] ?? defaultStudentName(index)),
   );
 
+  useEffect(() => {
+    if (!showSettings) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowSettings(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showSettings]);
+
   const refresh = async (monthId?: number) => {
     const response = await fetch(`/api/tracker${monthId ? `?monthId=${monthId}` : ""}`);
     const json = await response.json();
@@ -69,7 +84,7 @@ export default function TrackerApp({ initialState, username }: Props) {
     }
   };
 
-  const callAction = async (payload: Record<string, unknown>) => {
+  const callAction = async (payload: Record<string, unknown>): Promise<boolean> => {
     try {
       setError("");
       const nextState = await postAction(payload);
@@ -101,7 +116,7 @@ export default function TrackerApp({ initialState, username }: Props) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowSettings(true)}
+              onClick={() => setShowSettings((value) => !value)}
               className="rounded-full border border-sky-300/40 bg-[#10244a] px-3 py-2 text-sm hover:bg-[#153160]"
               aria-label="Open settings"
             >
@@ -194,6 +209,13 @@ export default function TrackerApp({ initialState, username }: Props) {
                 className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-semibold text-slate-900 hover:bg-sky-400"
               >
                 Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="mt-2 rounded-xl border border-sky-400/30 px-4 py-2 font-semibold text-slate-200 hover:bg-[#091226]"
+              >
+                Cancel
               </button>
             </section>
           </div>
