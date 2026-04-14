@@ -205,7 +205,8 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
     const studentIndex = Number(row.student_index);
     const nextCount = (studentClassCount.get(studentIndex) ?? 0) + 1;
     studentClassCount.set(studentIndex, nextCount);
-    classNumberByDayStudent[`${Number(row.day_id)}:${studentIndex}`] = nextCount;
+    classNumberByDayStudent[`${Number(row.day_id)}:${studentIndex}`] =
+      ((nextCount - 1) % CYCLE_CLASS_COUNT) + 1;
   }
 
   const cycles = await getCycles();
