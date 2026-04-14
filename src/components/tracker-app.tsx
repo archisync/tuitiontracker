@@ -355,7 +355,11 @@ export default function TrackerApp({ initialState, username }: Props) {
                                     ? "border-emerald-300 bg-emerald-500"
                                     : "border-sky-300/60 bg-transparent hover:border-sky-200"
                                 }`}
-                                aria-label={`Toggle ${name} on ${day.dateIso}`}
+                                aria-label={
+                                  checked && classNumber
+                                    ? `Toggle ${name} on ${day.dateIso}, class ${classNumber}`
+                                    : `Toggle ${name} on ${day.dateIso}`
+                                }
                               >
                                 {checked ? (
                                   <span className="text-[10px] font-semibold text-black sm:text-xs">
