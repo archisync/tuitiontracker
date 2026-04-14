@@ -37,6 +37,7 @@ export default function TrackerApp({ initialState, username }: Props) {
   const [showAddDay, setShowAddDay] = useState(false);
   const [newMonth, setNewMonth] = useState("");
   const [newDay, setNewDay] = useState("");
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [studentCountDraft, setStudentCountDraft] = useState(state.settings.studentCount);
   const [namesDraft, setNamesDraft] = useState<string[]>(
     Array.from({ length: 3 }, (_, index) => state.settings.names[index] ?? defaultStudentName(index)),
@@ -197,18 +198,21 @@ export default function TrackerApp({ initialState, username }: Props) {
               <button
                 type="button"
                 onClick={async () => {
+                  setIsSavingSettings(true);
                   const saved = await callAction({
                     action: "saveSettings",
                     studentCount: studentCountDraft,
                     names: namesDraft,
                   });
+                  setIsSavingSettings(false);
                   if (saved) {
                     setShowSettings(false);
                   }
                 }}
+                disabled={isSavingSettings}
                 className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-semibold text-slate-900 hover:bg-sky-400"
               >
-                Save
+                {isSavingSettings ? "Saving..." : "Save"}
               </button>
               <button
                 type="button"

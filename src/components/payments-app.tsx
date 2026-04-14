@@ -32,7 +32,7 @@ export default function PaymentsApp({ initialState, username }: Props) {
   const [state, setState] = useState<TrackerState>(initialState);
   const [error, setError] = useState<string>("");
 
-  const setPaymentGiven = async (cycleId: number, paymentGiven: boolean) => {
+  const setPaymentGiven = async (cycleId: number, paymentGiven: boolean): Promise<void> => {
     try {
       setError("");
       const nextState = await postAction({

@@ -5,7 +5,7 @@ import type { Cycle } from "@/lib/types";
 
 type Props = {
   cycles: Cycle[];
-  onTogglePayment: (cycleId: number, paymentGiven: boolean) => void;
+  onTogglePayment: (cycleId: number, paymentGiven: boolean) => Promise<void>;
 };
 
 export default function PaymentCyclesPanel({ cycles, onTogglePayment }: Props) {
@@ -36,7 +36,9 @@ export default function PaymentCyclesPanel({ cycles, onTogglePayment }: Props) {
                 <input
                   type="checkbox"
                   checked={cycle.paymentGiven}
-                  onChange={(event) => onTogglePayment(cycle.id, event.target.checked)}
+                  onChange={(event) => {
+                    void onTogglePayment(cycle.id, event.target.checked);
+                  }}
                 />
                 Payment Given
               </label>
