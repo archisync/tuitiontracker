@@ -191,6 +191,23 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
     checkedByDay[dayId].push(Number(row.student_index));
   }
 
+  const activeEventsResult = await execute({
+    sql: `SELECT id, day_id, student_index, date_iso
+          FROM class_events
+          WHERE archived_cycle_id IS NULL
+          ORDER BY student_index ASC, date_iso ASC, id ASC`,
+  });
+
+  const classNumberByDayStudent: Record<string, number> = {};
+  const studentClassCount = new Map<number, number>();
+
+  for (const row of activeEventsResult.rows) {
+    const studentIndex = Number(row.student_index);
+    const nextCount = (studentClassCount.get(studentIndex) ?? 0) + 1;
+    studentClassCount.set(studentIndex, nextCount);
+    classNumberByDayStudent[`${Number(row.day_id)}:${studentIndex}`] = nextCount;
+  }
+
   const cycles = await getCycles();
 
   return {
@@ -202,6 +219,7 @@ export async function getTrackerState(monthId?: number): Promise<TrackerState> {
     selectedMonthId,
     days,
     checkedByDay,
+    classNumberByDayStudent,
     cycles,
   };
 }
