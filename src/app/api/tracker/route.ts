@@ -4,6 +4,9 @@ import {
   addDay,
   addMonth,
   deleteDay,
+  deleteDays,
+  deleteCycle,
+  editCycleClass,
   editDay,
   getTrackerState,
   saveSettings,
@@ -69,6 +72,25 @@ export async function POST(request: Request) {
       }
       case "deleteDay": {
         await deleteDay(Number(payload.dayId));
+        break;
+      }
+      case "deleteDays": {
+        if (!Array.isArray(payload.dayIds)) {
+          return NextResponse.json({ error: "dayIds must be an array" }, { status: 400 });
+        }
+        await deleteDays(payload.dayIds.map((id) => Number(id)));
+        break;
+      }
+      case "deleteCycle": {
+        await deleteCycle(Number(payload.cycleId));
+        break;
+      }
+      case "editCycleClass": {
+        await editCycleClass(
+          Number(payload.classId),
+          String(payload.dateIso ?? ""),
+          String(payload.dayName ?? ""),
+        );
         break;
       }
       case "editDay": {

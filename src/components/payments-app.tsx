@@ -47,6 +47,36 @@ export default function PaymentsApp({ initialState, username }: Props) {
     }
   };
 
+  const deleteCycle = async (cycleId: number): Promise<void> => {
+    try {
+      setError("");
+      const nextState = await postAction({
+        action: "deleteCycle",
+        cycleId,
+        monthId: state.selectedMonthId,
+      });
+      setState(nextState);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+    }
+  };
+
+  const editCycleClass = async (classId: number, dateIso: string, dayName: string): Promise<void> => {
+    try {
+      setError("");
+      const nextState = await postAction({
+        action: "editCycleClass",
+        classId,
+        dateIso,
+        dayName,
+        monthId: state.selectedMonthId,
+      });
+      setState(nextState);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#060d1d] text-slate-100">
       <div className="mx-auto max-w-5xl p-3 sm:p-6">
@@ -67,7 +97,12 @@ export default function PaymentsApp({ initialState, username }: Props) {
           <div className="mb-4 rounded-xl border border-rose-400/50 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>
         ) : null}
 
-        <PaymentCyclesPanel cycles={state.cycles} onTogglePayment={setPaymentGiven} />
+        <PaymentCyclesPanel
+          cycles={state.cycles}
+          onTogglePayment={setPaymentGiven}
+          onDeleteCycle={deleteCycle}
+          onEditCycleClass={editCycleClass}
+        />
       </div>
     </div>
   );
