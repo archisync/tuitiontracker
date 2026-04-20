@@ -60,6 +60,8 @@ export default function TrackerApp({ initialState, username }: Props) {
   const [dayActionMenu, setDayActionMenu] = useState<DayActionMenuState | null>(null);
   const [editDayDraft, setEditDayDraft] = useState<EditDayDraft | null>(null);
   const [isEditDaySaving, setIsEditDaySaving] = useState(false);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedDayIds, setSelectedDayIds] = useState<Set<number>>(new Set());
   const dayLongPressTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -176,6 +178,18 @@ export default function TrackerApp({ initialState, username }: Props) {
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
+  };
+
+  const toggleDaySelection = (dayId: number) => {
+    setSelectedDayIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(dayId)) {
+        next.delete(dayId);
+      } else {
+        next.add(dayId);
+      }
+      return next;
+    });
   };
 
   return (
@@ -322,9 +336,20 @@ export default function TrackerApp({ initialState, username }: Props) {
                   });
                   setDayActionMenu(null);
                 }}
-                className="w-full rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-left text-sm font-semibold text-rose-200 hover:bg-rose-500/20"
+                className="mb-2 w-full rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-left text-sm font-semibold text-rose-200 hover:bg-rose-500/20"
               >
                 Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMultiSelectMode(true);
+                  setSelectedDayIds(new Set());
+                  setDayActionMenu(null);
+                }}
+                className="w-full rounded-lg border border-sky-400/40 bg-sky-500/10 px-3 py-2 text-left text-sm font-semibold text-sky-200 hover:bg-sky-500/20"
+              >
+                Multi-select
               </button>
             </div>
           </div>
@@ -486,6 +511,39 @@ export default function TrackerApp({ initialState, username }: Props) {
               >
                 Add Day
               </button>
+
+              {isMultiSelectMode && (
+                <>
+                  {selectedDayIds.size > 0 && (
+                    <button
+                      type="button"
+                      aria-label="Delete selected days"
+                      onClick={async () => {
+                        await callAction({
+                          action: "deleteDays",
+                          dayIds: Array.from(selectedDayIds),
+                          monthId: state.selectedMonthId,
+                        });
+                        setSelectedDayIds(new Set());
+                        setIsMultiSelectMode(false);
+                      }}
+                      className="flex items-center gap-1 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20"
+                    >
+                      🗑️ Delete ({selectedDayIds.size})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMultiSelectMode(false);
+                      setSelectedDayIds(new Set());
+                    }}
+                    className="rounded-xl border border-sky-400/30 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-[#091226]"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
 
             {showAddMonth && (
@@ -561,37 +619,61 @@ export default function TrackerApp({ initialState, username }: Props) {
                       </td>
                     </tr>
                   ) : (
-                    state.days.map((day) => (
-                      <tr key={day.id} className="border-t border-sky-400/10">
+                    state.days.map((day) => {
+                      const isSelected = selectedDayIds.has(day.id);
+                      return (
+                      <tr
+                        key={day.id}
+                        className={`border-t border-sky-400/10 ${isSelected ? "bg-sky-500/10" : ""}`}
+                      >
                         <td
                           className="cursor-pointer px-3 py-2 select-none"
                           onContextMenu={(event) => {
+                            if (isMultiSelectMode) return;
                             event.preventDefault();
                             clearDayLongPressTimer();
                             openDayActionMenu(day.id, day.dateIso, day.dayName, event.clientX, event.clientY);
                           }}
-                          onPointerDown={(event) =>
-                            handleDayPointerDown(event, day.id, day.dateIso, day.dayName)
+                          onPointerDown={(event) => {
+                            if (isMultiSelectMode) return;
+                            handleDayPointerDown(event, day.id, day.dateIso, day.dayName);
+                          }}
+                          onPointerUp={isMultiSelectMode ? undefined : clearDayLongPressTimer}
+                          onPointerLeave={isMultiSelectMode ? undefined : clearDayLongPressTimer}
+                          onPointerCancel={isMultiSelectMode ? undefined : clearDayLongPressTimer}
+                          onClick={
+                            isMultiSelectMode
+                              ? () => toggleDaySelection(day.id)
+                              : undefined
                           }
-                          onPointerUp={clearDayLongPressTimer}
-                          onPointerLeave={clearDayLongPressTimer}
-                          onPointerCancel={clearDayLongPressTimer}
                         >
+                          {isMultiSelectMode && (
+                            <span className="mr-1 inline-block h-4 w-4 rounded border border-sky-400 bg-[#091226] align-middle">
+                              {isSelected && <span className="block text-center text-[10px] leading-4 text-sky-300">✓</span>}
+                            </span>
+                          )}
                           {day.dateIso}
                         </td>
                         <td
                           className="cursor-pointer px-3 py-2 select-none"
                           onContextMenu={(event) => {
+                            if (isMultiSelectMode) return;
                             event.preventDefault();
                             clearDayLongPressTimer();
                             openDayActionMenu(day.id, day.dateIso, day.dayName, event.clientX, event.clientY);
                           }}
-                          onPointerDown={(event) =>
-                            handleDayPointerDown(event, day.id, day.dateIso, day.dayName)
+                          onPointerDown={(event) => {
+                            if (isMultiSelectMode) return;
+                            handleDayPointerDown(event, day.id, day.dateIso, day.dayName);
+                          }}
+                          onPointerUp={isMultiSelectMode ? undefined : clearDayLongPressTimer}
+                          onPointerLeave={isMultiSelectMode ? undefined : clearDayLongPressTimer}
+                          onPointerCancel={isMultiSelectMode ? undefined : clearDayLongPressTimer}
+                          onClick={
+                            isMultiSelectMode
+                              ? () => toggleDaySelection(day.id)
+                              : undefined
                           }
-                          onPointerUp={clearDayLongPressTimer}
-                          onPointerLeave={clearDayLongPressTimer}
-                          onPointerCancel={clearDayLongPressTimer}
                         >
                           {day.dayName}
                         </td>
@@ -631,7 +713,8 @@ export default function TrackerApp({ initialState, username }: Props) {
                           );
                         })}
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>

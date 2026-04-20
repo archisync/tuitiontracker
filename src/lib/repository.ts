@@ -395,6 +395,64 @@ export async function deleteDay(dayId: number) {
   triggerBackgroundSync();
 }
 
+export async function deleteDays(dayIds: number[]) {
+  await ensureSchema();
+
+  const validIds = dayIds.map((id) => Math.trunc(id)).filter((id) => Number.isInteger(id) && id > 0);
+
+  if (validIds.length === 0) {
+    return;
+  }
+
+  // Safe dynamic placeholders: validIds are validated positive integers above.
+  const placeholders = validIds.map(() => "?").join(",");
+
+  await execute({
+    sql: `DELETE FROM days WHERE id IN (${placeholders})`,
+    args: validIds,
+  });
+
+  triggerBackgroundSync();
+}
+
+export async function deleteCycle(cycleId: number) {
+  await ensureSchema();
+
+  await execute({
+    sql: "DELETE FROM cycle_classes WHERE cycle_id = ?",
+    args: [cycleId],
+  });
+
+  await execute({
+    sql: "UPDATE class_events SET archived_cycle_id = NULL WHERE archived_cycle_id = ?",
+    args: [cycleId],
+  });
+
+  await execute({
+    sql: "DELETE FROM cycles WHERE id = ?",
+    args: [cycleId],
+  });
+
+  triggerBackgroundSync();
+}
+
+export async function editCycleClass(classId: number, dateIso: string, dayName: string) {
+  await ensureSchema();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+    throw new Error("Invalid date format.");
+  }
+
+  const normalizedDayName = dayName.trim() || getDhakaDayName(dateIso);
+
+  await execute({
+    sql: "UPDATE cycle_classes SET date_iso = ?, day_name = ? WHERE id = ?",
+    args: [dateIso, normalizedDayName, classId],
+  });
+
+  triggerBackgroundSync();
+}
+
 export async function editDay(dayId: number, dateIso: string, dayName: string, topics: string[]) {
   await ensureSchema();
 
